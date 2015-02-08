@@ -4,6 +4,7 @@
 
 (ns cider-ci.builder.create
   (:require 
+    [cider-ci.builder.repository :as repository]
     [cider-ci.builder.util :as util]
     [cider-ci.utils.debug :as debug]
     [cider-ci.utils.http :as http]
@@ -34,4 +35,32 @@
      (jdbc/query (rdbms/get-ds)))
 
 
+(->> (-> (hh/select :true)
+         (hc/format))
+     (jdbc/query (rdbms/get-ds)))
 
+
+
+
+(defn dependencies-fullfilled [args]
+  (let [[name properties] args
+        query (atom (hh/select :true))]
+    (logging/info {:name name :properties properties :query query})
+    (->> (-> @query
+             (hc/format))
+         (jdbc/query (rdbms/get-ds))
+         first 
+         :bool
+         
+         )))
+
+
+(defn trigger [tree-id]
+  (->> (repository/get-path-content tree-id "/.cider-ci.yml")
+       :executions
+       (into [])
+       (filter #(-> % second :trigger))
+       (filter dependencies-fullfilled)
+  ))
+
+(trigger "9678b18ef031f0ab219911a4594c526f7af8e2a7")
