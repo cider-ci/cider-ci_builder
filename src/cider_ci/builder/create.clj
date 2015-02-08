@@ -41,19 +41,29 @@
 
 
 
+(defn add-state-filter [query-atom name state]
+  (logging/info {:name name :state state})
+  (let [extended-query (-> @query-atom
+                           (hh/merge-where [:exists (-> (hh/select :true)
+                                                        (hh/from :executions)
+                                                        (hh/merge-where [:= :executions.name name])
+                                                        (hh/merge-where [:= :executions.state state]))]))]
+    (logging/info {:sql (hc/format extended-query)})
+    (reset! query-atom extended-query)))
+
 
 (defn dependencies-fullfilled [args]
   (let [[name properties] args
         query (atom (hh/select :true))]
     (logging/info {:name name :properties properties :query query})
+    (doseq [[name-sym state](->> properties :depends :executions)]
+      ; (name name-sym) doesn't work here, why ?  
+      (add-state-filter query (subs (str name-sym) 1) state))
     (->> (-> @query
              (hc/format))
          (jdbc/query (rdbms/get-ds))
          first 
-         :bool
-         
-         )))
-
+         :bool)))
 
 (defn trigger [tree-id]
   (->> (repository/get-path-content tree-id "/.cider-ci.yml")
