@@ -5,7 +5,7 @@
 (ns cider-ci.builder.main
   (:require 
     [cider-ci.auth.core :as auth]
-    [cider-ci.builder.expansion :as expansion]
+    [cider-ci.builder.repository :as repository]
     [cider-ci.builder.tasks :as tasks]
     [cider-ci.builder.web :as web]
     [cider-ci.utils.config-loader :as config-loader]
@@ -39,10 +39,9 @@
   (tasks/initialize)
   (auth/initialize (select-keys @conf [:session :basic_auth]))
   (web/initialize (select-keys @conf [:http_server]))
-  (expansion/initialize 
+  (repository/initialize 
     (select-keys @conf [:repository_service
                         :basic_auth]))
-
   nil)
 
 
