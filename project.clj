@@ -10,6 +10,7 @@
                  [cider-ci/clj-auth "2.1.0"]
                  [cider-ci/clj-utils "2.4.0"]
                  [drtom/clj-uuid "0.0.8"]
+                 [honeysql "0.4.5"]
                  [org.clojure/tools.nrepl "0.2.7"]
                  ]
   :source-paths [ "src"]
