@@ -31,15 +31,28 @@
   (reset! query-atom 
           (-> @query-atom
               (hh/merge-where 
-                [" EXISTS " (-> (hh/select :true)
-                             (hh/from :executions)
-                             (hh/merge-where [:= :executions.name name])
-                             (hh/merge-where [:= :executions.state state]))]))))
+                [" EXISTS " (-> (hh/select 1)
+                                (hh/from :executions)
+                                (hh/merge-where [:= :executions.name name])
+                                (hh/merge-where [:= :executions.state state]))]))))
+
+(defn add-branch-regex-filter [query-atom regex]
+  (logging/info add-branch-regex-filter [query-atom regex])
+  (reset! query-atom
+          (-> @query-atom
+              (hh/merge-where 
+                [" EXISTS "  (-> (hh/select 1)
+                                 (hh/from :branches)
+                                 ; TODO add tree_id condition
+                                 (hh/merge-where [(keyword "~") :branches.name regex]))]))))
+
 
 ; TODO add branch filter
 (defn add-dependency-filter [query-atom properties]
   (doseq [[other-name-sym state](->> properties :depends :executions)]
-    (add-state-filter query-atom (name other-name-sym) state)))
+    (add-state-filter query-atom (name other-name-sym) state))
+  (when-let [branch-regex (-> properties :depends :branch)]
+    (add-branch-regex-filter query-atom branch-regex)))
 
 (defn add-self-name-filter [query-atom name]
   (logging/info add-self-name-filter [query-atom name])
