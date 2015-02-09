@@ -36,23 +36,23 @@
                                 (hh/merge-where [:= :executions.name name])
                                 (hh/merge-where [:= :executions.state state]))]))))
 
-(defn add-branch-regex-filter [query-atom regex]
-  (logging/info add-branch-regex-filter [query-atom regex])
+(defn add-branch-regex-filter [tree-id query-atom regex]
+  (logging/info add-branch-regex-filter [tree-id query-atom regex])
   (reset! query-atom
           (-> @query-atom
               (hh/merge-where 
                 [" EXISTS "  (-> (hh/select 1)
                                  (hh/from :branches)
-                                 ; TODO add tree_id condition
+                                 (hh/merge-join :commits [:= :branches.current_commit_id :commits.id])
+                                 (hh/merge-where [:= :commits.tree_id tree-id])
                                  (hh/merge-where [(keyword "~") :branches.name regex]))]))))
 
 
-; TODO add branch filter
-(defn add-dependency-filter [query-atom properties]
+(defn add-dependency-filter [tree-id query-atom properties]
   (doseq [[other-name-sym state](->> properties :depends :executions)]
     (add-state-filter query-atom (name other-name-sym) state))
   (when-let [branch-regex (-> properties :depends :branch)]
-    (add-branch-regex-filter query-atom branch-regex)))
+    (add-branch-regex-filter tree-id query-atom branch-regex)))
 
 (defn add-self-name-filter [query-atom name]
   (logging/info add-self-name-filter [query-atom name])
@@ -63,24 +63,25 @@
                                   (hh/from :executions)
                                   (hh/where [:= :executions.name name]))]))))
 
-(defn trigger-execution? [[self-name-sym properties]]
-  (let [self-name (name self-name-sym)
-        query-atom (atom (hh/select :true))]
-    (logging/info {:name self-name  :properties properties :initial-sql (hc/format @query-atom)})
-    (add-self-name-filter query-atom self-name)
-    (add-dependency-filter query-atom properties)
-    (logging/info {:final-sql (hc/format @query-atom)})
-    (->> (-> @query-atom
-             (hc/format))
-         (jdbc/query (rdbms/get-ds))
-         first 
-         :bool)))
+(defn build-trigger-execution? [tree-id] 
+  (fn [[self-name-sym properties]]
+    (let [self-name (name self-name-sym)
+          query-atom (atom (hh/select :true))]
+      (logging/info {:name self-name  :properties properties :initial-sql (hc/format @query-atom)})
+      (add-self-name-filter query-atom self-name)
+      (add-dependency-filter tree-id query-atom properties)
+      (logging/info {:final-sql (hc/format @query-atom)})
+      (->> (-> @query-atom
+               (hc/format))
+           (jdbc/query (rdbms/get-ds))
+           first 
+           :bool))))
 
 (defn trigger [tree-id]
   (->> (repository/get-path-content tree-id "/.cider-ci.yml")
        :executions
        (into [])
        (filter #(-> % second :trigger))
-       (filter trigger-execution? )))
+       (filter (build-trigger-execution? tree-id))))
 
 (trigger "9678b18ef031f0ab219911a4594c526f7af8e2a7")
