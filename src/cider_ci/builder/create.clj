@@ -37,7 +37,7 @@
                                 (hh/merge-where [:= :executions.state state]))]))))
 
 (defn add-branch-regex-filter [tree-id query-atom regex]
-  (logging/info add-branch-regex-filter [tree-id query-atom regex])
+  (logging/debug add-branch-regex-filter [tree-id query-atom regex])
   (reset! query-atom
           (-> @query-atom
               (hh/merge-where 
@@ -55,7 +55,7 @@
     (add-branch-regex-filter tree-id query-atom branch-regex)))
 
 (defn add-self-name-filter [query-atom name]
-  (logging/info add-self-name-filter [query-atom name])
+  (logging/debug add-self-name-filter [query-atom name])
   (reset! query-atom
           (-> @query-atom
               (hh/merge-where
@@ -63,14 +63,45 @@
                                   (hh/from :executions)
                                   (hh/where [:= :executions.name name]))]))))
 
-(defn build-trigger-execution? [tree-id] 
+(defn build-dependencies-fullfiled? [tree-id] 
   (fn [[self-name-sym properties]]
     (let [self-name (name self-name-sym)
           query-atom (atom (hh/select :true))]
-      (logging/info {:name self-name  :properties properties :initial-sql (hc/format @query-atom)})
+      (logging/debug {:name self-name  :properties properties :initial-sql (hc/format @query-atom)})
       (add-self-name-filter query-atom self-name)
       (add-dependency-filter tree-id query-atom properties)
-      (logging/info {:final-sql (hc/format @query-atom)})
+      (logging/debug {:final-sql (hc/format @query-atom)})
+      (->> (-> @query-atom
+               (hc/format))
+           (jdbc/query (rdbms/get-ds))
+           first 
+           :bool))))
+
+(defn add-branch-filter [tree-id query-atom conditions]
+  (logging/info "add-branch-filter" [tree-id query-atom conditions])
+  (when-let [branch-filter-str (:branch conditions)]
+    (logging/info {:branch-filter-str branch-filter-str})
+    (reset! query-atom
+            (-> @query-atom
+                (hh/merge-where 
+                  [" EXISTS "  
+                   (-> (if (re-matches #"^\^.*" branch-filter-str)
+                         (hh/merge-where [(keyword "~") :branches.name branch-filter-str])
+                         (hh/merge-where [:= :branches.name branch-filter-str]))
+                       (hh/select 1)
+                       (hh/from :branches)
+                       (hh/merge-join :commits [:= :branches.current_commit_id :commits.id])
+                       (hh/merge-where [:= :commits.tree_id tree-id])
+                       )])))))
+
+(defn build-trigger-constraints-fullfilled? [tree-id] 
+  (fn [[self-name-sym properties]]
+    (let [self-name (name self-name-sym)
+          query-atom (atom (hh/select :true))]
+      (logging/info "trigger-constraints-fullfilled?" {:name self-name  :properties properties :initial-sql (hc/format @query-atom)})
+      (add-self-name-filter query-atom self-name)
+      (add-branch-filter tree-id query-atom (-> properties :trigger))
+      (logging/info "trigger-constraints-fullfilled?" {:final-sql (hc/format @query-atom)})
       (->> (-> @query-atom
                (hc/format))
            (jdbc/query (rdbms/get-ds))
@@ -82,6 +113,11 @@
        :executions
        (into [])
        (filter #(-> % second :trigger))
-       (filter (build-trigger-execution? tree-id))))
+       (filter (build-dependencies-fullfiled? tree-id))
+       (filter (build-trigger-constraints-fullfilled? tree-id))
+       ))
 
 (trigger "9678b18ef031f0ab219911a4594c526f7af8e2a7")
+(trigger "cf3bcf353838e4af6ac0f7467cd0a2eee3502cdb")
+
+(trigger "f2a6ecab55fad613b28bc105086e17988cf355e4")
