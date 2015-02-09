@@ -2,7 +2,7 @@
 ; Licensed under the terms of the GNU Affero General Public License v3.
 ; See the "LICENSE.txt" file provided with this software.
 
-(ns cider-ci.builder.create
+(ns cider-ci.builder.executions
   (:require 
     [cider-ci.builder.repository :as repository]
     [cider-ci.builder.util :as util]
@@ -25,9 +25,8 @@
                       (logging/info msg))))
   
 
-(defn initialize [&args])
-
-(defn add-state-filter [query-atom name state]
+;### filter executions ########################################################
+(defn add-state-filter-to-query [query-atom name state]
   (reset! query-atom 
           (-> @query-atom
               (hh/merge-where 
@@ -43,8 +42,7 @@
       (hh/merge-where [(keyword "~") :branches.name branch-filter-str])
       (hh/merge-where [:= :branches.name branch-filter-str]))))
 
-
-(defn add-branch-filter [tree-id query-atom conditions]
+(defn add-branch-filter-to-query [tree-id query-atom conditions]
   (logging/debug "add-branch-filter" [tree-id query-atom conditions])
   (when-let [where-condition (branch-filter-sql-part conditions)]
     (reset! 
@@ -58,12 +56,8 @@
                  (hh/merge-join :commits [:= :branches.current_commit_id :commits.id])
                  (hh/merge-where [:= :commits.tree_id tree-id]))])))))
 
-(defn add-dependency-filter [tree-id query-atom properties]
-  (doseq [[other-name-sym state](->> properties :depends :executions)]
-    (add-state-filter query-atom (name other-name-sym) state)))
-
-(defn add-self-name-filter [query-atom name]
-  (logging/debug add-self-name-filter [query-atom name])
+(defn add-self-name-filter-to-query [query-atom name]
+  (logging/debug add-self-name-filter-to-query [query-atom name])
   (reset! query-atom
           (-> @query-atom
               (hh/merge-where
@@ -77,9 +71,10 @@
     (let [self-name (name self-name-sym)
           query-atom (atom (hh/select :true))]
       (logging/debug {:name self-name  :properties properties :initial-sql (hc/format @query-atom)})
-      (add-self-name-filter query-atom self-name)
-      (add-dependency-filter tree-id query-atom properties)
-      (add-branch-filter tree-id query-atom (:depends properties))
+      (add-self-name-filter-to-query query-atom self-name)
+      (doseq [[other-name-sym state](->> properties :depends :executions)]
+        (add-state-filter-to-query query-atom (name other-name-sym) state))
+      (add-branch-filter-to-query tree-id query-atom (:depends properties))
       (logging/debug {:final-sql (hc/format @query-atom)})
       (->> (-> @query-atom
                (hc/format))
@@ -92,8 +87,8 @@
     (let [self-name (name self-name-sym)
           query-atom (atom (hh/select :true))]
       (logging/debug "trigger-constraints-fullfilled?" {:name self-name  :properties properties :initial-sql (hc/format @query-atom)})
-      (add-self-name-filter query-atom self-name)
-      (add-branch-filter tree-id query-atom (-> properties :trigger))
+      (add-self-name-filter-to-query query-atom self-name)
+      (add-branch-filter-to-query tree-id query-atom (-> properties :trigger))
       (logging/debug "trigger-constraints-fullfilled?" {:final-sql (hc/format @query-atom)})
       (->> (-> @query-atom
                (hc/format))
@@ -101,7 +96,9 @@
            first 
            :bool))))
 
-(defn trigger [tree-id]
+
+
+(defn trigger-executions [tree-id]
   (->> (repository/get-path-content tree-id "/.cider-ci.yml")
        :executions
        (into [])
@@ -110,4 +107,4 @@
        (filter (build-trigger-constraints-fullfilled? tree-id))
        ))
 
-;(trigger "6ead70379661922505b6c8c3b0acfce93f79fe3e")
+;(trigger-executions "6ead70379661922505b6c8c3b0acfce93f79fe3e")
