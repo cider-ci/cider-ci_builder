@@ -86,42 +86,42 @@
                      (hh/from :executions)
                      (hh/where [:= :executions.name name]))]))))
 
-(defn build-dependencies-fullfiled? [tree-id] 
-  (fn [properties]
-    (let [query-atom (atom (hh/select :true))]
-      (logging/debug {:properties properties :initial-sql (hc/format @query-atom)})
-      (add-self-name-filter-to-query query-atom (:name properties))
-      (doseq [[other-name-sym state](->> properties :depends :executions)]
-        (add-state-filter-to-query query-atom (name other-name-sym) state))
-      (add-branch-filter-to-query tree-id query-atom (:depends properties))
-      (logging/debug {:final-sql (hc/format @query-atom)})
-      (->> (-> @query-atom
-               (hc/format))
-           (jdbc/query (rdbms/get-ds))
-           first 
-           :bool))))
+(defn dependencies-fullfiled? [properties]
+  (let [query-atom (atom (hh/select :true))]
+    (logging/debug {:properties properties :initial-sql (hc/format @query-atom)})
+    (add-self-name-filter-to-query query-atom (:name properties))
+    (doseq [[other-name-sym state](->> properties :depends :executions)]
+      (add-state-filter-to-query query-atom (name other-name-sym) state))
+    (add-branch-filter-to-query (:tree_id properties) query-atom (:depends properties))
+    (logging/debug {:final-sql (hc/format @query-atom)})
+    (->> (-> @query-atom
+             (hc/format))
+         (jdbc/query (rdbms/get-ds))
+         first 
+         :bool)))
 
-(defn build-trigger-constraints-fullfilled? [tree-id] 
-  (fn [properties]
+(defn trigger-constraints-fullfilled? [properties] 
     (let [query-atom (atom (hh/select :true))]
       (logging/debug "trigger-constraints-fullfilled?" {:properties properties :initial-sql (hc/format @query-atom)})
       (add-self-name-filter-to-query query-atom (:name properties))
-      (add-branch-filter-to-query tree-id query-atom (-> properties :trigger))
+      (add-branch-filter-to-query (:tree_id properties) query-atom (-> properties :trigger))
       (logging/debug "trigger-constraints-fullfilled?" {:final-sql (hc/format @query-atom)})
       (->> (-> @query-atom
                (hc/format))
            (jdbc/query (rdbms/get-ds))
            first 
-           :bool))))
+           :bool)))
 
 (defn trigger-executions [tree-id]
   (->> (repository/get-path-content tree-id "/.cider-ci.yml")
        :executions
        (into [])
-       (map (fn [[name_sym properties]] (assoc properties :name (name name_sym))))
+       (map (fn [[name_sym properties]] (assoc properties 
+                                               :name (name name_sym)
+                                               :tree_id tree-id)))
        (filter #(-> % :trigger))
-       (filter (build-dependencies-fullfiled? tree-id))
-       (filter (build-trigger-constraints-fullfilled? tree-id))
+       (filter dependencies-fullfiled?)
+       (filter trigger-constraints-fullfilled?)
        (map add-specification-id)
        ))
 
