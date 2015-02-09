@@ -27,20 +27,6 @@
 
 (defn initialize [&args])
 
-
-(->> (-> (hh/select :*)
-         (hh/from :branches)
-         (hh/merge-where [(keyword "~") :branches.name ".*"])
-         (hc/format))
-     (jdbc/query (rdbms/get-ds)))
-
-
-(->> (-> (hh/select :true)
-         (hc/format))
-     (jdbc/query (rdbms/get-ds)))
-
-
-
 (defn add-state-filter [query-atom name state]
   (reset! query-atom 
           (-> @query-atom
@@ -50,6 +36,10 @@
                              (hh/merge-where [:= :executions.name name])
                              (hh/merge-where [:= :executions.state state]))]))))
 
+; TODO add branch filter
+(defn add-dependency-filter [query-atom properties]
+  (doseq [[other-name-sym state](->> properties :depends :executions)]
+    (add-state-filter query-atom (name other-name-sym) state)))
 
 (defn add-self-name-filter [query-atom name]
   (logging/info add-self-name-filter [query-atom name])
@@ -60,14 +50,12 @@
                                   (hh/from :executions)
                                   (hh/where [:= :executions.name name]))]))))
 
-(defn trigger? [args]
-  (let [[self-name-sym properties] args
-        self-name (name self-name-sym)
+(defn trigger-execution? [[self-name-sym properties]]
+  (let [self-name (name self-name-sym)
         query-atom (atom (hh/select :true))]
     (logging/info {:name self-name  :properties properties :initial-sql (hc/format @query-atom)})
     (add-self-name-filter query-atom self-name)
-    (doseq [[other-name-sym state](->> properties :depends :executions)]
-      (add-state-filter query-atom (name other-name-sym) state))
+    (add-dependency-filter query-atom properties)
     (logging/info {:final-sql (hc/format @query-atom)})
     (->> (-> @query-atom
              (hc/format))
@@ -80,6 +68,6 @@
        :executions
        (into [])
        (filter #(-> % second :trigger))
-       (filter trigger? )))
+       (filter trigger-execution? )))
 
 (trigger "9678b18ef031f0ab219911a4594c526f7af8e2a7")
