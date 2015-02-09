@@ -20,14 +20,7 @@
     ))
 
 
-(defn listen-to-branch-updates []
-  (messaging/listen "branch.updated" 
-                    (fn [msg] 
-                      (logging/info msg))))
-  
-
 ;### create execution #########################################################
-
 
 (defn add-specification-id [params]
   (logging/info add-specification-id [params])
@@ -37,15 +30,31 @@
              spec/get-or-create-execution-specification 
              :id)))
 
-(defn create [params]
-  (jdbc/insert! (rdbms/get-ds)
-                (select-keys params [:tree_id, :specification_id, :name, :description])
-                )
+(defn add-tags [params]
+  (logging/info add-tags [params])
+  (jdbc/query 
+    (rdbms/get-ds)
+    ["SELECT name FROM branches
+     JOIN commits ON commits.id = branches.current_commit_id
+     WHERE commits.tree_id = ? " (:tree_id params)])
+  params
   )
 
-
+(defn create [params]
+  (logging/info create [params])
+  (->> (jdbc/insert! 
+         (rdbms/get-ds)
+         :executions
+         (select-keys params 
+                      [:tree_id, :specification_id, 
+                       :name, :description]))
+       first
+       (conj params)
+       add-tags
+       ))
 
 ;### filter executions ########################################################
+
 (defn add-state-filter-to-query [query-atom name state]
   (reset! query-atom 
           (-> @query-atom
@@ -100,6 +109,14 @@
          first 
          :bool)))
 
+
+;### trigger executions #######################################################
+
+(defn listen-to-branch-updates []
+  (messaging/listen "branch.updated" 
+                    (fn [msg] 
+                      (logging/info msg))))
+
 (defn trigger-constraints-fullfilled? [properties] 
     (let [query-atom (atom (hh/select :true))]
       (logging/debug "trigger-constraints-fullfilled?" {:properties properties :initial-sql (hc/format @query-atom)})
@@ -111,7 +128,7 @@
            (jdbc/query (rdbms/get-ds))
            first 
            :bool)))
-
+  
 (defn trigger-executions [tree-id]
   (->> (repository/get-path-content tree-id "/.cider-ci.yml")
        :executions
@@ -123,6 +140,9 @@
        (filter dependencies-fullfiled?)
        (filter trigger-constraints-fullfilled?)
        (map add-specification-id)
+       (map create)
        ))
+
+
 
 ;(trigger-executions "6ead70379661922505b6c8c3b0acfce93f79fe3e")
