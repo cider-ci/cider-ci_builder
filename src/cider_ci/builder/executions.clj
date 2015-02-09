@@ -5,6 +5,7 @@
 (ns cider-ci.builder.executions
   (:require 
     [cider-ci.builder.repository :as repository]
+    [cider-ci.builder.spec :as spec]
     [cider-ci.builder.util :as util]
     [cider-ci.utils.debug :as debug]
     [cider-ci.utils.http :as http]
@@ -27,11 +28,21 @@
 
 ;### create execution #########################################################
 
+
+(defn add-specification-id [params]
+  (logging/info add-specification-id [params])
+  (assoc params :specification_id 
+         (-> params
+             :specification
+             spec/get-or-create-execution-specification 
+             :id)))
+
 (defn create [params]
   (jdbc/insert! (rdbms/get-ds)
                 (select-keys params [:tree_id, :specification_id, :name, :description])
                 )
   )
+
 
 
 ;### filter executions ########################################################
@@ -96,7 +107,7 @@
       (logging/debug "trigger-constraints-fullfilled?" {:properties properties :initial-sql (hc/format @query-atom)})
       (add-self-name-filter-to-query query-atom (:name properties))
       (add-branch-filter-to-query tree-id query-atom (-> properties :trigger))
-      (logging/info "trigger-constraints-fullfilled?" {:final-sql (hc/format @query-atom)})
+      (logging/debug "trigger-constraints-fullfilled?" {:final-sql (hc/format @query-atom)})
       (->> (-> @query-atom
                (hc/format))
            (jdbc/query (rdbms/get-ds))
@@ -111,6 +122,7 @@
        (filter #(-> % :trigger))
        (filter (build-dependencies-fullfiled? tree-id))
        (filter (build-trigger-constraints-fullfilled? tree-id))
+       (map add-specification-id)
        ))
 
 ;(trigger-executions "6ead70379661922505b6c8c3b0acfce93f79fe3e")
