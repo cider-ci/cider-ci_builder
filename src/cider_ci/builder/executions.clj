@@ -20,6 +20,40 @@
     ))
 
 
+;### tags #####################################################################
+
+(defn get-or-insert-tag [tag]
+  (or (first (jdbc/query 
+               (rdbms/get-ds)
+               ["SELECT * FROM tags WHERE tag = ? " tag]))
+      (first (jdbc/insert!
+               (rdbms/get-ds) :tags
+               {:tag tag}))))
+
+(defn add-exectutions-tags-link [execution-params tag-params]
+  (or (first (jdbc/query 
+               (rdbms/get-ds)
+               ["SELECT * FROM executions_tags 
+                WHERE execution_id = ? 
+                AND tag_id = ? " (:id execution-params ) (:id tag-params)]))
+      (first (jdbc/insert!
+               (rdbms/get-ds) :executions_tags
+               {:execution_id (:id execution-params) :tag_id (:id tag-params)}))))
+
+(defn add-tags [params]
+  (logging/info add-tags [params])
+  (->> (jdbc/query 
+         (rdbms/get-ds)
+         ["SELECT name FROM branches
+          JOIN commits ON commits.id = branches.current_commit_id
+          WHERE commits.tree_id = ? " (:tree_id params)])
+       (map :name)
+       (map (fn [tag] 
+              (let [tag-row (get-or-insert-tag tag)]
+                (add-exectutions-tags-link params tag-row)))))
+  params)
+
+
 ;### create execution #########################################################
 
 (defn add-specification-id [params]
@@ -29,16 +63,6 @@
              :specification
              spec/get-or-create-execution-specification 
              :id)))
-
-(defn add-tags [params]
-  (logging/info add-tags [params])
-  (jdbc/query 
-    (rdbms/get-ds)
-    ["SELECT name FROM branches
-     JOIN commits ON commits.id = branches.current_commit_id
-     WHERE commits.tree_id = ? " (:tree_id params)])
-  params
-  )
 
 (defn create [params]
   (logging/info create [params])
@@ -146,3 +170,9 @@
 
 
 ;(trigger-executions "6ead70379661922505b6c8c3b0acfce93f79fe3e")
+
+;### Debug ####################################################################
+;(debug/debug-ns *ns*)
+;(debug/debug-ns 'cider-ci.utils.http)
+;(logging-config/set-logger! :level :debug)
+;(logging-config/set-logger! :level :info)
