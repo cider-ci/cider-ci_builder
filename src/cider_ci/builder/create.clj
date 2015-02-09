@@ -42,24 +42,34 @@
 
 
 (defn add-state-filter [query-atom name state]
-  (logging/info {:name name :state state})
-  (let [extended-query (-> @query-atom
-                           (hh/merge-where [:exists (-> (hh/select :true)
-                                                        (hh/from :executions)
-                                                        (hh/merge-where [:= :executions.name name])
-                                                        (hh/merge-where [:= :executions.state state]))]))]
-    (logging/info {:sql (hc/format extended-query)})
-    (reset! query-atom extended-query)))
+  (reset! query-atom 
+          (-> @query-atom
+              (hh/merge-where 
+                [" EXISTS " (-> (hh/select :true)
+                             (hh/from :executions)
+                             (hh/merge-where [:= :executions.name name])
+                             (hh/merge-where [:= :executions.state state]))]))))
 
 
-(defn dependencies-fullfilled [args]
-  (let [[name properties] args
-        query (atom (hh/select :true))]
-    (logging/info {:name name :properties properties :query query})
-    (doseq [[name-sym state](->> properties :depends :executions)]
-      ; (name name-sym) doesn't work here, why ?  
-      (add-state-filter query (subs (str name-sym) 1) state))
-    (->> (-> @query
+(defn add-self-name-filter [query-atom name]
+  (logging/info add-self-name-filter [query-atom name])
+  (reset! query-atom
+          (-> @query-atom
+              (hh/merge-where
+                ["NOT EXISTS" (-> (hh/select 1)
+                                  (hh/from :executions)
+                                  (hh/where [:= :executions.name name]))]))))
+
+(defn trigger? [args]
+  (let [[self-name-sym properties] args
+        self-name (name self-name-sym)
+        query-atom (atom (hh/select :true))]
+    (logging/info {:name self-name  :properties properties :initial-sql (hc/format @query-atom)})
+    (add-self-name-filter query-atom self-name)
+    (doseq [[other-name-sym state](->> properties :depends :executions)]
+      (add-state-filter query-atom (name other-name-sym) state))
+    (logging/info {:final-sql (hc/format @query-atom)})
+    (->> (-> @query-atom
              (hc/format))
          (jdbc/query (rdbms/get-ds))
          first 
@@ -70,7 +80,6 @@
        :executions
        (into [])
        (filter #(-> % second :trigger))
-       (filter dependencies-fullfilled)
-  ))
+       (filter trigger? )))
 
 (trigger "9678b18ef031f0ab219911a4594c526f7af8e2a7")
