@@ -5,6 +5,7 @@
 (ns cider-ci.builder.executions
   (:require 
     [cider-ci.builder.repository :as repository]
+    [cider-ci.builder.executions.tags :as tags]
     [cider-ci.builder.spec :as spec]
     [cider-ci.builder.util :as util]
     [cider-ci.utils.debug :as debug]
@@ -19,42 +20,6 @@
     [honeysql.core :as hc]
     [honeysql.helpers :as hh]
     ))
-
-
-;### tags #####################################################################
-
-(defn get-or-insert-tag [tag]
-  (or (first (jdbc/query 
-               (rdbms/get-ds)
-               ["SELECT * FROM tags WHERE tag = ? " tag]))
-      (first (jdbc/insert!
-               (rdbms/get-ds) :tags
-               {:tag tag}))))
-
-(defn add-exectutions-tags-link [execution-params tag-params]
-  (or (first (jdbc/query 
-               (rdbms/get-ds)
-               ["SELECT * FROM executions_tags 
-                WHERE execution_id = ? 
-                AND tag_id = ? " (:id execution-params ) (:id tag-params)]))
-      (first (jdbc/insert!
-               (rdbms/get-ds) :executions_tags
-               {:execution_id (:id execution-params) :tag_id (:id tag-params)}))))
-
-(defn get-tags [params]
-  (->> (jdbc/query 
-         (rdbms/get-ds)
-         ["SELECT name FROM branches
-          JOIN commits ON commits.id = branches.current_commit_id
-          WHERE commits.tree_id = ? " (:tree_id params)])
-       (map :name)
-       ))
-
-(defn add-tags [params]
-  (doseq [tag (get-tags params)]
-    (let [tag-row (get-or-insert-tag tag)]
-      (add-exectutions-tags-link params tag-row)))
-  params)
 
 
 ;### create execution #########################################################
@@ -77,7 +42,7 @@
                        :name, :description]))
        first
        (conj params)
-       add-tags
+       tags/add-execution-tags
        ))
 
 ;### filter executions ########################################################
