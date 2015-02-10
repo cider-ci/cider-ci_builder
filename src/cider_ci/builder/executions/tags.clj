@@ -31,14 +31,28 @@
                (rdbms/get-ds) :executions_tags
                {:execution_id (:id execution-params) :tag_id (:id tag-params)}))))
 
-(defn get-tags [params]
+(defn get-branch-tags [params]
   (->> (jdbc/query 
          (rdbms/get-ds)
          ["SELECT name FROM branches
           JOIN commits ON commits.id = branches.current_commit_id
           WHERE commits.tree_id = ? " (:tree_id params)])
-       (map :name)
-       ))
+       (map :name)))
+
+(defn get-repository-tags [params]
+  (->> (jdbc/query 
+         (rdbms/get-ds)
+         ["SELECT repositories.name FROM repositories
+          JOIN branches ON branches.repository_id = repositories.id
+          JOIN commits ON commits.id = branches.current_commit_id
+          WHERE commits.tree_id = ? " (:tree_id params)])
+       (map :name)))
+
+(defn get-tags [params]
+  (concat 
+    (get-branch-tags params)
+    (get-repository-tags params)
+    ))
 
 (defn add-execution-tags [params]
   (doseq [tag (get-tags params)]
