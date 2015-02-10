@@ -12,6 +12,7 @@
     [cider-ci.utils.messaging :as messaging]
     [cider-ci.utils.rdbms :as rdbms]
     [cider-ci.utils.with :as with]
+    [clj-logging-config.log4j :as logging-config]
     [clj-yaml.core :as yaml]
     [clojure.java.jdbc :as jdbc]
     [clojure.tools.logging :as logging]
@@ -40,17 +41,19 @@
                (rdbms/get-ds) :executions_tags
                {:execution_id (:id execution-params) :tag_id (:id tag-params)}))))
 
-(defn add-tags [params]
-  (logging/info add-tags [params])
+(defn get-tags [params]
   (->> (jdbc/query 
          (rdbms/get-ds)
          ["SELECT name FROM branches
           JOIN commits ON commits.id = branches.current_commit_id
           WHERE commits.tree_id = ? " (:tree_id params)])
        (map :name)
-       (map (fn [tag] 
-              (let [tag-row (get-or-insert-tag tag)]
-                (add-exectutions-tags-link params tag-row)))))
+       ))
+
+(defn add-tags [params]
+  (doseq [tag (get-tags params)]
+    (let [tag-row (get-or-insert-tag tag)]
+      (add-exectutions-tags-link params tag-row)))
   params)
 
 
