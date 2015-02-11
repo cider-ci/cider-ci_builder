@@ -47,7 +47,6 @@
 
 ;#### the main handler ########################################################
 
-
 (defn build-main-handler [context]
   ( -> top-handler
        (wrap-status-dispatch)
@@ -64,9 +63,8 @@
 
 (defn initialize [new-conf]
   (reset! conf new-conf)
-  (let [http-conf (-> @conf :http_server)
-        context (str (:context http-conf) (:sub_context http-conf))]
-    (http-server/start http-conf (build-main-handler context))))
+  (let [context (str (:context @conf) (:sub_context @conf))]
+    (http-server/start @conf (build-main-handler context))))
 
 
 ;### Debug ####################################################################

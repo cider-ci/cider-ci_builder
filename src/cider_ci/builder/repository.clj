@@ -18,7 +18,6 @@
 (defonce ^:private conf (atom {}))
 
 (defn- parse-path-content [path content]
-  ; TODO handle json content
   (try 
     (with/logging (yaml/parse-string content))
     (catch Exception _
@@ -44,7 +43,7 @@
     (str "/" path)))
 
 (defn get-path-content_ [git-ref-id path]
-  (let [url (http/build-url (:repository_service @conf) 
+  (let [url (http/build-url (:http @conf) 
                             (str "/path-content/" git-ref-id (format-path path)))
         res (try (with/logging (http/get url {}))
                  (catch Exception _ 

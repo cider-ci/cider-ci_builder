@@ -13,6 +13,7 @@
     [cider-ci.utils.messaging :as messaging]
     [cider-ci.utils.nrepl :as nrepl]
     [cider-ci.utils.rdbms :as rdbms]
+    [cider-ci.utils.map :refer [deep-merge]]
     [clojure.java.jdbc :as jdbc]
     [clojure.tools.logging :as logging]
     ))
@@ -24,25 +25,26 @@
 (defn read-config []
   (config-loader/read-and-merge
     conf ["conf_default.yml" 
-          "conf.yml"]))
+          "conf.yml"])
+  @conf)
 
 
 (defn get-db-spec []
-  (-> @conf (:database) (:db_spec) ))
-
+  (deep-merge 
+    (or (-> @conf :database ) {} )
+    (or (-> @conf :services :builder :database ) {} )))
 
 (defn -main [& args]
   (read-config)
-  (nrepl/initialize (:nrepl @conf))
+  (nrepl/initialize (-> @conf :services :builder :nrepl))
   (rdbms/initialize (get-db-spec))
   (messaging/initialize (:messaging @conf))
   (tasks/initialize)
   (auth/initialize (select-keys @conf [:session :basic_auth]))
-  (web/initialize (select-keys @conf [:http_server]))
-  (repository/initialize 
-    (select-keys @conf [:repository_service
-                        :basic_auth]))
-  nil)
+  (web/initialize (-> @conf :services :builder :http))
+  (repository/initialize {:basic_auth (:basic_auth @conf)
+                          :http (-> @conf :services :repository :http)})
+  @conf)
 
 
 ;### Debug ####################################################################
