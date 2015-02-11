@@ -44,18 +44,31 @@
     (cpj/GET "/status" request #'status-handler)
     (cpj/ANY "*" request default-handler)))
 
+;##### executions ############################################################# 
+
+(defn available-executions [request]
+  {:status 200 
+   :body "Available executions coming soon ..."
+   })
+
+(defn wrap-executions [default-handler]
+  (cpj/routes
+    (cpj/GET "/executions/available/:tree_id" request #'available-executions)
+    (cpj/ANY "*" request default-handler)))
 
 ;#### the main handler ########################################################
 
 (defn build-main-handler [context]
   ( -> top-handler
-       (wrap-status-dispatch)
+       wrap-status-dispatch
+       (routing/wrap-debug-logging 'cider-ci.builder.web)
+       wrap-executions
        (routing/wrap-debug-logging 'cider-ci.builder.web)
        (auth/wrap-authenticate-and-authorize-service)
        (routing/wrap-debug-logging 'cider-ci.builder.web)
        (routing/wrap-prefix context)
        (routing/wrap-debug-logging 'cider-ci.builder.web)
-       (http-basic/wrap)
+       http-basic/wrap
        (routing/wrap-debug-logging 'cider-ci.builder.web)
        ))
 
