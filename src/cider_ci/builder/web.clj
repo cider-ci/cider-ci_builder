@@ -6,11 +6,12 @@
   (:require 
     [cider-ci.auth.core :as auth]
     [cider-ci.auth.http-basic :as http-basic]
-    [cider-ci.utils.routing :as routing]
+    [cider-ci.builder.executions :as executions]
     [cider-ci.utils.debug :as debug]
     [cider-ci.utils.http-server :as http-server]
     [cider-ci.utils.messaging :as messaging]
     [cider-ci.utils.rdbms :as rdbms]
+    [cider-ci.utils.routing :as routing]
     [cider-ci.utils.with :as with]
     [clj-logging-config.log4j :as logging-config]
     [clojure.data.json :as json]
@@ -44,17 +45,21 @@
     (cpj/GET "/status" request #'status-handler)
     (cpj/ANY "*" request default-handler)))
 
+
 ;##### executions ############################################################# 
 
 (defn available-executions [request]
   {:status 200 
-   :body "Available executions coming soon ..."
-   })
+   :headers {"content-type" "application/json;charset=utf-8"}
+   :body (json/write-str 
+           (executions/available-executions 
+             (-> request :route-params :tree_id)))})
 
 (defn wrap-executions [default-handler]
   (cpj/routes
     (cpj/GET "/executions/available/:tree_id" request #'available-executions)
     (cpj/ANY "*" request default-handler)))
+
 
 ;#### the main handler ########################################################
 
@@ -71,6 +76,7 @@
        http-basic/wrap
        (routing/wrap-debug-logging 'cider-ci.builder.web)
        ))
+
 
 ;#### the server ##############################################################
 

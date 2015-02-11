@@ -102,6 +102,19 @@
          :bool)))
 
 
+
+;### available executions #####################################################
+
+(defn available-executions [tree-id]
+  (->> (repository/get-path-content tree-id "/.cider-ci.yml")
+       :executions
+       (into [])
+       (map (fn [[name_sym properties]] (assoc properties 
+                                               :name (name name_sym)
+                                               :tree_id tree-id)))
+       (filter dependencies-fullfiled?)
+       ))
+
 ;### trigger executions #######################################################
 
 (defn listen-to-branch-updates []
@@ -136,8 +149,9 @@
        ))
 
 
-
 ;(trigger-executions "6ead70379661922505b6c8c3b0acfce93f79fe3e")
+
+;(available-executions "6ead70379661922505b6c8c3b0acfce93f79fe3e")
 
 ;### Debug ####################################################################
 ;(debug/debug-ns *ns*)
