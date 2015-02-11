@@ -45,11 +45,7 @@
 (defn get-path-content_ [git-ref-id path]
   (let [url (http/build-url (:http @conf) 
                             (str "/path-content/" git-ref-id (format-path path)))
-        res (try (with/logging (http/get url {}))
-                 (catch Exception _ 
-                   (throw 
-                     (IllegalStateException. 
-                       (str "Failed to retrieve the contents of " url ". ")))))
+        res (try (with/logging (http/get url {})))
         body (:body res)]
     (parse-path-content path body)))
 

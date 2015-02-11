@@ -49,11 +49,16 @@
 ;##### executions ############################################################# 
 
 (defn available-executions [request]
-  {:status 200 
-   :headers {"content-type" "application/json;charset=utf-8"}
-   :body (json/write-str 
-           (executions/available-executions 
-             (-> request :route-params :tree_id)))})
+  (try 
+    {:status 200 
+     :headers {"content-type" "application/json;charset=utf-8"}
+     :body (json/write-str 
+             (executions/available-executions 
+               (-> request :route-params :tree_id)))}
+    (catch clojure.lang.ExceptionInfo e
+      (case (-> e ex-data :object :status)
+        404 {:status 404}
+        (throw e)))))
 
 (defn wrap-executions [default-handler]
   (cpj/routes
