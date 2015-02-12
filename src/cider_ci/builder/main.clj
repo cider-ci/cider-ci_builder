@@ -17,6 +17,7 @@
     [cider-ci.utils.with :as with]
     [clojure.java.jdbc :as jdbc]
     [clojure.tools.logging :as logging]
+    [pg-types.all]
     ))
 
 

@@ -25,28 +25,53 @@
 
 ;### create execution #########################################################
 
+(defn try-to-add-specification-from-dotfile [params] 
+  (try 
+    (-> (repository/get-path-content (:tree_id params) "/.cider-ci.yml")
+        :executions
+        (get (:name params))
+        :specification
+        ((fn [specification]
+           (assoc params :specification specification))))
+    (catch clojure.lang.ExceptionInfo e
+      (case (-> e ex-data :object :status)
+        404 params
+        (throw e)))))
 
+(defn add-specification-id-if-not-present [params]
+  (logging/info add-specification-id-if-not-present [params])
+  (if (:specification_id params)
+    params
+    (assoc params :specification_id 
+           (-> params
+               :specification
+               spec/get-or-create-execution-specification 
+               :id))))
 
-(defn add-specification-id [params]
-  (logging/info add-specification-id [params])
-  (assoc params :specification_id 
-         (-> params
-             :specification
-             spec/get-or-create-execution-specification 
-             :id)))
+(defn add-specification-from-dofile-if-not-present [params]
+  (if (and (not (:specification_id params))
+           (not (:specification params))
+           (:name params)
+           (:tree_id params))
+    (try-to-add-specification-from-dotfile params)
+    params)
+  )
 
 (defn create [params]
   (logging/info create [params])
-  (->> (jdbc/insert! 
-         (rdbms/get-ds)
-         :executions
-         (select-keys params 
-                      [:tree_id, :specification_id, 
-                       :name, :description, :priority]))
-       first
-       (conj params)
-       tags/add-execution-tags
-       ))
+  (-> params 
+      add-specification-from-dofile-if-not-present
+      add-specification-id-if-not-present
+      ((fn [params]
+         (->> (jdbc/insert! 
+                (rdbms/get-ds)
+                :executions
+                (select-keys params 
+                             [:tree_id, :specification_id, 
+                              :name, :description, :priority]))
+              first
+              (conj params))))
+      tags/add-execution-tags))
 
 
 ;### filter executions ########################################################
@@ -106,7 +131,6 @@
          :bool)))
 
 
-
 ;### available executions #####################################################
 
 (defn available-executions [tree-id]
@@ -149,7 +173,7 @@
        (filter #(-> % :trigger))
        (filter dependencies-fullfiled?)
        (filter trigger-constraints-fullfilled?)
-       (map add-specification-id)
+       (map add-specification-id-if-not-present)
        (map create)
        ))
 

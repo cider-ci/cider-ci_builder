@@ -18,6 +18,7 @@
     [clojure.tools.logging :as logging]
     [compojure.core :as cpj]
     [ring.middleware.json]
+    [clojure.walk :refer [keywordize-keys]]
     ))
 
 
@@ -50,7 +51,17 @@
 ;##### executions ############################################################# 
 
 (defn create-execution [request]
-  )
+  (with/logging
+    {:status 201 
+     :body (executions/create 
+             (->> request
+                  :body
+                  keywordize-keys
+                  (map (fn [[k,v]]
+                         [k, (case k
+                               :tree_id v
+                               v)]))
+                  (into {})))}))
 
 (defn available-executions [request]
   (try 
@@ -101,7 +112,6 @@
   (reset! conf new-conf)
   (let [context (str (:context @conf) (:sub_context @conf))]
     (http-server/start @conf (build-main-handler context))))
-
 
 
 ;### Debug ####################################################################
