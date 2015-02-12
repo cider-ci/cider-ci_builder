@@ -18,11 +18,7 @@
 (defonce ^:private conf (atom {}))
 
 (defn- parse-path-content [path content]
-  (try 
-    (with/logging (yaml/parse-string content))
-    (catch Exception _
-      (throw (IllegalStateException. 
-               (str "Failed to parse the content of " path ))))))
+  (with/logging (yaml/parse-string content)))
 
 
 ;; TODO; enable this in cider-ci 3.0

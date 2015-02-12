@@ -10,10 +10,11 @@
     [cider-ci.builder.web :as web]
     [cider-ci.utils.config-loader :as config-loader]
     [cider-ci.utils.debug :as debug]
+    [cider-ci.utils.map :refer [deep-merge]]
     [cider-ci.utils.messaging :as messaging]
     [cider-ci.utils.nrepl :as nrepl]
     [cider-ci.utils.rdbms :as rdbms]
-    [cider-ci.utils.map :refer [deep-merge]]
+    [cider-ci.utils.with :as with]
     [clojure.java.jdbc :as jdbc]
     [clojure.tools.logging :as logging]
     ))
@@ -35,16 +36,17 @@
     (or (-> @conf :services :builder :database ) {} )))
 
 (defn -main [& args]
-  (read-config)
-  (nrepl/initialize (-> @conf :services :builder :nrepl))
-  (rdbms/initialize (get-db-spec))
-  (messaging/initialize (:messaging @conf))
-  (tasks/initialize)
-  (auth/initialize (select-keys @conf [:session :basic_auth]))
-  (web/initialize (-> @conf :services :builder :http))
-  (repository/initialize {:basic_auth (:basic_auth @conf)
-                          :http (-> @conf :services :repository :http)})
-  @conf)
+  (with/logging 
+    (read-config)
+    (nrepl/initialize (-> @conf :services :builder :nrepl))
+    (rdbms/initialize (get-db-spec))
+    (messaging/initialize (:messaging @conf))
+    (tasks/initialize)
+    (auth/initialize (select-keys @conf [:session :basic_auth]))
+    (web/initialize (-> @conf :services :builder :http))
+    (repository/initialize {:basic_auth (:basic_auth @conf)
+                            :http (-> @conf :services :repository :http)})
+    @conf))
 
 
 ;### Debug ####################################################################

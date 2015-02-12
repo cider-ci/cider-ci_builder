@@ -18,7 +18,7 @@
              :dev {:dependencies [[midje "1.6.3"]]
                    :plugins [[lein-midje "3.1.1"]]
                    :resource-paths ["../resources_dev" "resources_dev"] }
-             :production {:resource-paths [  "/etc/cider-ci_builder" ] }}
+             :production {:resource-paths [  "/etc/cider-ci_builder" "/etc/cider-ci"] }}
   :aot [cider-ci.builder.main] 
   :main cider-ci.builder.main 
   :repositories [["tmp" {:url "http://maven-repo-tmp.drtom.ch" :snapshots false}]]

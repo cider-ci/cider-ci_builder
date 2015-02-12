@@ -17,6 +17,7 @@
     [clojure.data.json :as json]
     [clojure.tools.logging :as logging]
     [compojure.core :as cpj]
+    [ring.middleware.json]
     ))
 
 
@@ -48,6 +49,9 @@
 
 ;##### executions ############################################################# 
 
+(defn create-execution [request]
+  )
+
 (defn available-executions [request]
   (try 
     {:status 200 
@@ -58,11 +62,16 @@
     (catch clojure.lang.ExceptionInfo e
       (case (-> e ex-data :object :status)
         404 {:status 404}
-        (throw e)))))
+        (throw e)))
+    (catch org.yaml.snakeyaml.parser.ParserException e
+      {:status 422
+       :body "Failed to parse the YAML file."}
+      )))
 
 (defn wrap-executions [default-handler]
   (cpj/routes
     (cpj/GET "/executions/available/:tree_id" request #'available-executions)
+    (cpj/POST "/executions/" request #'create-execution)
     (cpj/ANY "*" request default-handler)))
 
 
@@ -73,6 +82,9 @@
        wrap-status-dispatch
        (routing/wrap-debug-logging 'cider-ci.builder.web)
        wrap-executions
+       (routing/wrap-debug-logging 'cider-ci.builder.web)
+       ring.middleware.json/wrap-json-response
+       ring.middleware.json/wrap-json-body
        (routing/wrap-debug-logging 'cider-ci.builder.web)
        (auth/wrap-authenticate-and-authorize-service)
        (routing/wrap-debug-logging 'cider-ci.builder.web)
@@ -89,6 +101,7 @@
   (reset! conf new-conf)
   (let [context (str (:context @conf) (:sub_context @conf))]
     (http-server/start @conf (build-main-handler context))))
+
 
 
 ;### Debug ####################################################################

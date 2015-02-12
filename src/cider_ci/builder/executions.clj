@@ -13,6 +13,7 @@
     [cider-ci.utils.messaging :as messaging]
     [cider-ci.utils.rdbms :as rdbms]
     [cider-ci.utils.with :as with]
+    [cider-ci.utils.map :refer [deep-merge]]
     [clj-logging-config.log4j :as logging-config]
     [clj-yaml.core :as yaml]
     [clojure.java.jdbc :as jdbc]
@@ -23,6 +24,8 @@
 
 
 ;### create execution #########################################################
+
+
 
 (defn add-specification-id [params]
   (logging/info add-specification-id [params])
@@ -39,11 +42,12 @@
          :executions
          (select-keys params 
                       [:tree_id, :specification_id, 
-                       :name, :description]))
+                       :name, :description, :priority]))
        first
        (conj params)
        tags/add-execution-tags
        ))
+
 
 ;### filter executions ########################################################
 
@@ -114,6 +118,7 @@
                                                :tree_id tree-id)))
        (filter dependencies-fullfiled?)
        ))
+
 
 ;### trigger executions #######################################################
 
