@@ -8,7 +8,7 @@
             :url "http://www.gnu.org/licenses/agpl-3.0.html"}
   :dependencies [
                  [cider-ci/clj-auth "2.1.0"]
-                 [cider-ci/clj-utils "2.6.0-beta.1"]
+                 [cider-ci/clj-utils "2.6.0"]
                  [drtom/clj-uuid "0.0.8"]
                  [honeysql "0.4.5"]
                  [org.clojure/tools.nrepl "0.2.7"]
