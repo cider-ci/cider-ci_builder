@@ -7,6 +7,7 @@
     [cider-ci.builder.repository :as repository]
     [cider-ci.builder.executions.tags :as tags]
     [cider-ci.builder.spec :as spec]
+    [cider-ci.builder.tasks :as tasks]
     [cider-ci.builder.util :as util]
     [cider-ci.utils.debug :as debug]
     [cider-ci.utils.http :as http]
@@ -29,7 +30,7 @@
   (try 
     (-> (repository/get-path-content (:tree_id params) "/.cider-ci.yml")
         :executions
-        (get (:name params))
+        (get (keyword (:name params)))
         :specification
         ((fn [specification]
            (assoc params :specification specification))))
@@ -57,20 +58,28 @@
     params)
   )
 
+
+(defn invoke-create-tasks-and-trials [params]
+  (tasks/create-tasks-and-trials {:execution_id (:id params)})
+  params)
+
+(defn persist-execution [params]
+  (->> (jdbc/insert! 
+         (rdbms/get-ds)
+         :executions
+         (select-keys params 
+                      [:tree_id, :specification_id, 
+                       :name, :description, :priority]))
+       first
+       (conj params)))
+
 (defn create [params]
   (logging/info create [params])
   (-> params 
       add-specification-from-dofile-if-not-present
       add-specification-id-if-not-present
-      ((fn [params]
-         (->> (jdbc/insert! 
-                (rdbms/get-ds)
-                :executions
-                (select-keys params 
-                             [:tree_id, :specification_id, 
-                              :name, :description, :priority]))
-              first
-              (conj params))))
+      persist-execution
+      invoke-create-tasks-and-trials
       tags/add-execution-tags))
 
 
@@ -183,7 +192,7 @@
 ;(available-executions "6ead70379661922505b6c8c3b0acfce93f79fe3e")
 
 ;### Debug ####################################################################
-;(debug/debug-ns *ns*)
 ;(debug/debug-ns 'cider-ci.utils.http)
 ;(logging-config/set-logger! :level :debug)
 ;(logging-config/set-logger! :level :info)
+;(debug/debug-ns *ns*)
