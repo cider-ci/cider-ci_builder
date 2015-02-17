@@ -189,20 +189,37 @@
 
 ;### listen to branch updates #################################################
 
+(defn- evaluate-branch-updated-message [msg]
+  (-> (jdbc/query 
+        (rdbms/get-ds) 
+        ["SELECT tree_id FROM commits WHERE id = ? " (:current_commit_id msg)])
+      first
+      :tree_id
+      trigger-executions))
+
 (defn listen-to-branch-updates-and-fire-trigger-executions []
-  (messaging/listen "branch.updated" 
-                    (fn [msg] 
-                      (-> (jdbc/query 
-                            (rdbms/get-ds) 
-                            ["SELECT tree_id FROM commits WHERE id = ? " (:current_commit_id msg)])
-                          first
-                          :tree_id
-                          trigger-executions))))
+  (messaging/listen "branch.updated" evaluate-branch-updated-message))
+
+
+;### listen to execution updates ##############################################
+
+(defn evaluate-execution-update [msg] 
+  (-> (jdbc/query 
+        (rdbms/get-ds) 
+        ["SELECT tree_id FROM executions WHERE id = ? " (:id msg)])
+      first
+      :tree_id
+      trigger-executions))
+
+(defn listen-to-execution-updates-and-fire-trigger-executions []
+  (messaging/listen "execution.updated"  evaluate-execution-update))
 
 ;### initialize ###############################################################
 
 (defn initialize []
-  (listen-to-branch-updates-and-fire-trigger-executions))
+  (listen-to-branch-updates-and-fire-trigger-executions)
+  (listen-to-execution-updates-and-fire-trigger-executions)
+  )
 
 ;### Debug ####################################################################
 ;(debug/debug-ns 'cider-ci.utils.http)
