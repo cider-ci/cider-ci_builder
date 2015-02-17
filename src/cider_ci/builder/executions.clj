@@ -155,11 +155,6 @@
 
 ;### trigger executions #######################################################
 
-(defn listen-to-branch-updates []
-  (messaging/listen "branch.updated" 
-                    (fn [msg] 
-                      (logging/info msg))))
-
 (defn trigger-constraints-fullfilled? [properties] 
     (let [query-atom (atom (hh/select :true))]
       (logging/debug "trigger-constraints-fullfilled?" {:properties properties :initial-sql (hc/format @query-atom)})
@@ -190,6 +185,24 @@
 ;(trigger-executions "6ead70379661922505b6c8c3b0acfce93f79fe3e")
 
 ;(available-executions "6ead70379661922505b6c8c3b0acfce93f79fe3e")
+
+
+;### listen to branch updates #################################################
+
+(defn listen-to-branch-updates-and-fire-trigger-executions []
+  (messaging/listen "branch.updated" 
+                    (fn [msg] 
+                      (-> (jdbc/query 
+                            (rdbms/get-ds) 
+                            ["SELECT tree_id FROM commits WHERE id = ? " (:current_commit_id msg)])
+                          first
+                          :tree_id
+                          trigger-executions))))
+
+;### initialize ###############################################################
+
+(defn initialize []
+  (listen-to-branch-updates-and-fire-trigger-executions))
 
 ;### Debug ####################################################################
 ;(debug/debug-ns 'cider-ci.utils.http)

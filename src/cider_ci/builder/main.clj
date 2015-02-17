@@ -5,6 +5,7 @@
 (ns cider-ci.builder.main
   (:require 
     [cider-ci.auth.core :as auth]
+    [cider-ci.builder.executions :as executions]
     [cider-ci.builder.repository :as repository]
     [cider-ci.builder.tasks :as tasks]
     [cider-ci.builder.web :as web]
@@ -47,6 +48,7 @@
     (web/initialize (-> @conf :services :builder :http))
     (repository/initialize {:basic_auth (:basic_auth @conf)
                             :http (-> @conf :services :repository :http)})
+    (executions/initialize)
     @conf))
 
 
