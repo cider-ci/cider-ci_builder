@@ -7,7 +7,7 @@
 
     [clj-logging-config.log4j :as logging-config]
     [logbug.catcher :as catcher]
-    [logbug.debug :as debug :refer [÷> ÷>> identity-with-logging]]
+    [logbug.debug :as debug :refer [I> I>> identity-with-logging]]
     [clojure.tools.logging :as logging]
     ))
 
